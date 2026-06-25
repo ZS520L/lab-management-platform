@@ -48,21 +48,35 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-async function api(url, options = {}) {
-  const res = await fetch(url, {
-    headers: options.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
-    ...options
-  });
-  const contentType = res.headers.get('content-type') || '';
-  const payload = contentType.includes('application/json') ? await res.json() : await res.text();
-  if (!res.ok) {
-    let message = typeof payload === 'object' ? payload.error : payload;
-    if (typeof message === 'string' && /<\/?[a-z][\s\S]*>/i.test(message)) {
-      message = `请求失败：${res.status} ${res.statusText || ''}`.trim();
+async function api(url, options = {}, retries = 2) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      headers: options.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options
+    });
+    clearTimeout(timeout);
+    const contentType = res.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json') ? await res.json() : await res.text();
+    if (!res.ok) {
+      let message = typeof payload === 'object' ? payload.error : payload;
+      if (typeof message === 'string' && /<\/?[a-z][\s\S]*>/i.test(message)) {
+        message = `请求失败：${res.status} ${res.statusText || ''}`.trim();
+      }
+      throw new Error(message || '请求失败');
     }
-    throw new Error(message || '请求失败');
+    return payload;
+  } catch (err) {
+    clearTimeout(timeout);
+    if (retries > 0 && (err.name === 'AbortError' || err.message === 'Failed to fetch')) {
+      await new Promise(r => setTimeout(r, 500));
+      return api(url, options, retries - 1);
+    }
+    if (err.name === 'AbortError') throw new Error('请求超时，请检查网络后重试');
+    throw err;
   }
-  return payload;
 }
 
 function formatSize(bytes) {
