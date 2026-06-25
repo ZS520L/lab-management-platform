@@ -33,6 +33,7 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(PREVIEW_DIR, { recursive: true });
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: false,
@@ -446,6 +447,7 @@ const sessionMiddleware = session({
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.COOKIE_SECURE === 'true',
     maxAge: REMEMBER_SESSION_MS
   }
 });
@@ -1557,5 +1559,9 @@ app.use((err, req, res, next) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`实验室管理平台已启动：http://${HOST}:${PORT}`);
-  console.log('局域网访问时请使用服务器的内网 IP，例如：http://192.168.x.x:' + PORT);
+  if (process.env.PUBLIC_URL) {
+    console.log(`公网访问地址：${process.env.PUBLIC_URL}`);
+  } else {
+    console.log('局域网访问时请使用服务器的内网 IP，例如：http://192.168.x.x:' + PORT);
+  }
 });
