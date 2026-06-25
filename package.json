@@ -1,0 +1,30 @@
+{
+  "name": "lab-management-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "局域网实验室资料管理、文件审核与协作笔记平台",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "check": "node --check src/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "markdown-it": "^14.1.0",
+    "mime-types": "^2.1.35",
+    "multer": "^2.0.2",
+    "sanitize-html": "^2.14.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

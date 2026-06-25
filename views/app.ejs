@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>实验室管理平台</title>
+  <link rel="stylesheet" href="/assets/css/styles.css?v=20260625d" />
+  <script>
+    window.CURRENT_USER = <%- JSON.stringify(user).replace(/</g, '\\u003c') %>;
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <strong>实验室管理平台</strong>
+      <span class="badge">局域网版</span>
+    </div>
+    <nav class="tabs" aria-label="主导航">
+      <button data-view="files" class="active">资料库</button>
+      <button data-view="webnav">网页导航</button>
+      <button data-view="leaderboard">贡献榜</button>
+      <button data-view="announcements">公告</button>
+      <% if (user.role === 'admin') { %>
+        <button data-view="admin">管理后台</button>
+      <% } %>
+    </nav>
+    <div class="user-chip">
+      <span><%= user.username %>（<%= user.identity || (user.role === 'admin' ? '管理员' : '学生') %>）</span>
+      <form method="post" action="/logout"><button type="submit" class="ghost">退出</button></form>
+    </div>
+  </header>
+
+  <main class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>目录树</h2>
+        <% if (user.role === 'admin') { %>
+          <button id="new-folder-btn" class="small">新建</button>
+        <% } %>
+      </div>
+      <div id="folder-tree" class="tree"></div>
+    </aside>
+
+    <section class="workspace">
+      <section id="view-files" class="view active">
+        <div class="panel-head">
+          <div>
+            <h1 id="folder-title">请选择目录</h1>
+            <p id="folder-subtitle" class="muted">左侧点击目录后查看文件详情。</p>
+          </div>
+          <div class="toolbar-actions">
+            <% if (user.role === 'admin') { %>
+              <button id="move-folder-up-btn" class="ghost">上移目录</button>
+              <button id="move-folder-down-btn" class="ghost">下移目录</button>
+              <button id="rename-folder-btn" class="ghost">重命名目录</button>
+              <button id="delete-folder-btn" class="danger">删除目录</button>
+            <% } %>
+            <button id="upload-open" class="primary">上传文件</button>
+          </div>
+        </div>
+        <div class="split">
+          <div class="card">
+            <div class="card-head file-list-head">
+              <h3>文件列表</h3>
+              <div class="file-list-tools">
+                <label class="sortline">排序
+                  <select id="file-sort">
+                    <option value="uploader" selected>按上传人</option>
+                    <option value="time_desc">按时间：最新优先</option>
+                    <option value="time_asc">按时间：最早优先</option>
+                    <option value="type">按文件类型</option>
+                    <option value="name">按文件名</option>
+                  </select>
+                </label>
+                <label class="checkline admin-only"><input id="show-pending" type="checkbox" /> 显示待审核/拒绝</label>
+              </div>
+            </div>
+            <div id="file-list" class="file-list empty">暂无文件</div>
+          </div>
+          <div class="card detail-card">
+            <h3>文件详情</h3>
+            <div id="file-detail" class="empty">点击文件查看详情和预览。</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-webnav" class="view">
+        <div class="panel-head">
+          <div>
+            <h1>网页导航</h1>
+            <p class="muted">整理常用网站、工具和课题相关链接；学生可推荐，管理员审核和维护分类。</p>
+          </div>
+        </div>
+        <div class="webnav-layout">
+          <div class="card webnav-list-card">
+            <div class="card-head">
+              <h3>分类导航</h3>
+              <% if (user.role === 'admin') { %>
+                <label class="checkline"><input id="webnav-show-pending" type="checkbox" checked /> 显示待审核/拒绝</label>
+              <% } %>
+            </div>
+            <div id="webnav-list" class="webnav-list empty">暂无网页导航</div>
+          </div>
+          <aside class="webnav-side">
+            <form id="webnav-link-form" class="card form-stack">
+              <h3>推荐网页</h3>
+              <select name="category_id" id="webnav-category-select"></select>
+              <input name="title" placeholder="网站名称，例如 Google Scholar" required maxlength="120" />
+              <input name="url" placeholder="网址，例如 scholar.google.com" required />
+              <textarea name="description" placeholder="用途说明，可选"></textarea>
+              <button class="primary" type="submit"><%= user.role === 'admin' ? '直接添加' : '提交推荐' %></button>
+            </form>
+            <% if (user.role === 'admin') { %>
+              <div class="card webnav-admin-card admin-only">
+                <h3>分类维护</h3>
+                <form id="webnav-category-form" class="inline-form">
+                  <input name="name" placeholder="新分类名称" required maxlength="60" />
+                  <button class="primary" type="submit">新增</button>
+                </form>
+                <div id="webnav-category-list" class="webnav-category-list empty">暂无分类</div>
+              </div>
+            <% } %>
+          </aside>
+        </div>
+      </section>
+
+      <section id="view-leaderboard" class="view">
+        <div class="panel-head">
+          <div>
+            <h1>贡献榜</h1>
+            <p class="muted">按用户上传文件被审核通过的数量统计，支持周榜、月榜和总榜。</p>
+          </div>
+        </div>
+        <div class="card leaderboard-card">
+          <div class="leaderboard-tabs" aria-label="贡献榜筛选">
+            <button class="leaderboard-range active" data-leaderboard-range="week">周榜</button>
+            <button class="leaderboard-range" data-leaderboard-range="month">月榜</button>
+            <button class="leaderboard-range" data-leaderboard-range="total">总榜</button>
+          </div>
+          <div id="leaderboard-summary" class="muted">统计已通过审核的文件数量。</div>
+          <div id="leaderboard-list" class="leaderboard-list empty">暂无贡献记录</div>
+        </div>
+      </section>
+
+
+      <section id="view-announcements" class="view">
+        <div class="panel-head">
+          <div>
+            <h1>公告</h1>
+            <p class="muted">发布实验室公共通知、制度变更和重要提醒。</p>
+          </div>
+        </div>
+        <% if (user.role === 'admin') { %>
+          <form id="announcement-form" class="card form-grid">
+            <input name="title" placeholder="公告标题" required />
+            <textarea name="content" placeholder="公告内容" required></textarea>
+            <label class="checkline"><input name="pinned" type="checkbox" /> 置顶</label>
+            <button class="primary" type="submit">发布公告</button>
+          </form>
+        <% } %>
+        <div id="announcement-list" class="announcement-list"></div>
+      </section>
+
+      <% if (user.role === 'admin') { %>
+      <section id="view-admin" class="view">
+        <div class="panel-head">
+          <div>
+            <h1>管理后台</h1>
+            <p class="muted">用户白名单由管理员维护；登录时填写姓名和统一密码。</p>
+          </div>
+        </div>
+        <div class="admin-grid">
+          <div class="card">
+            <div class="card-head pending-head">
+              <h3>待审核文件</h3>
+              <div class="pending-actions">
+                <label class="checkline"><input id="pending-select-all" type="checkbox" /> 全选</label>
+                <button id="batch-approve-selected" class="small primary" type="button" disabled>通过选中</button>
+                <button id="batch-approve-all" class="small primary" type="button" disabled>全部通过</button>
+              </div>
+            </div>
+            <div id="pending-list" class="file-list empty">暂无待审核文件</div>
+          </div>
+          <div class="card">
+            <h3>添加白名单用户</h3>
+            <form id="user-form" class="form-stack">
+              <input name="username" placeholder="姓名/登录名，2-32 位" required minlength="2" maxlength="32" pattern="[\u4e00-\u9fffA-Za-z0-9_-]{2,32}" />
+              <input name="grade" placeholder="年级，例如 23级、24级（老师可留空）" pattern="\d{2}级" />
+              <select name="identity" required>
+                <option value="学生">学生</option>
+                <option value="老师">老师</option>
+                <option value="管理员">管理员</option>
+              </select>
+              <button class="primary" type="submit">加入白名单</button>
+            </form>
+            <h3>更新统一密码</h3>
+            <form id="shared-password-form" class="form-stack compact-form">
+              <input name="code" type="password" placeholder="新的统一密码，至少 6 位" required minlength="6" autocomplete="new-password" />
+              <button class="primary" type="submit">更新统一密码</button>
+            </form>
+            <h3>白名单用户</h3>
+            <div id="user-list" class="user-list"></div>
+          </div>
+        </div>
+      </section>
+      <% } %>
+    </section>
+  </main>
+
+  <dialog id="upload-dialog">
+    <form id="upload-form" method="dialog" class="form-stack">
+      <h2>上传文件</h2>
+      <p class="muted">管理员上传自动发布，组员上传后进入待审核区。</p>
+      <input type="hidden" name="folder_id" id="upload-folder-id" />
+      <label>目标目录<input id="upload-folder-name" disabled /></label>
+      <div class="upload-field">
+        <span class="upload-field-title">文件</span>
+        <div id="upload-dropzone" class="upload-dropzone" tabindex="0">
+          <strong>拖拽文件到这里，或点击选择文件</strong>
+          <span>支持多选、批量上传和任意格式文件</span>
+          <input id="upload-file-input" name="file" type="file" multiple />
+        </div>
+        <div id="upload-file-list" class="upload-file-list muted">尚未选择文件</div>
+      </div>
+      <label>说明<textarea name="description" placeholder="可填写用途、来源、版本等信息；批量上传时会应用到所有文件"></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" data-close-dialog>取消</button>
+        <button type="submit" class="primary">上传</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="folder-dialog">
+    <form id="folder-form" method="dialog" class="form-stack">
+      <h2>新建目录</h2>
+      <input type="hidden" name="parent_id" id="folder-parent-id" />
+      <label>父目录<input id="folder-parent-name" disabled /></label>
+      <label class="checkline"><input type="checkbox" id="folder-root-check" /> 创建为顶级目录（无父目录）</label>
+      <label>目录名<input name="name" required /></label>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" data-close-dialog>取消</button>
+        <button type="submit" class="primary">创建</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="move-file-dialog">
+    <form id="move-file-form" method="dialog" class="form-stack">
+      <h2>移动文件</h2>
+      <input type="hidden" name="file_id" id="move-file-id" />
+      <label>文件<input id="move-file-name" disabled /></label>
+      <label>目标目录<select name="folder_id" id="move-folder-select" required></select></label>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" data-close-dialog>取消</button>
+        <button type="submit" class="primary">移动</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="preview-dialog" class="preview-dialog">
+    <div class="preview-dialog-shell">
+      <header class="preview-dialog-head">
+        <div>
+          <h2 id="preview-dialog-title">文件预览</h2>
+          <p id="preview-dialog-subtitle" class="muted">左侧预览文件，右侧直接添加和查看该文件的笔记。</p>
+        </div>
+        <button type="button" class="ghost" id="preview-dialog-close">关闭</button>
+      </header>
+      <div class="preview-dialog-body">
+        <section class="preview-dialog-file" id="preview-dialog-file"></section>
+        <aside class="preview-comments-panel">
+          <h3>文件笔记</h3>
+          <form id="file-comment-form" class="comment-form">
+            <textarea id="file-comment-content" name="content" placeholder="在这里写关于该文件的笔记，例如重点、问题、结论、待办..." required></textarea>
+            <button class="primary" type="submit">保存笔记</button>
+          </form>
+          <div id="file-comments-list" class="file-comments-list empty">暂无文件笔记</div>
+        </aside>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="announcement-popup" class="announcement-popup">
+    <div class="announcement-popup-shell">
+      <header class="announcement-popup-head">
+        <div>
+          <span id="announcement-popup-count" class="muted">新公告</span>
+          <h2 id="announcement-popup-title">公告标题</h2>
+          <p id="announcement-popup-meta" class="muted"></p>
+        </div>
+        <button type="button" class="ghost" id="announcement-popup-close">稍后再看</button>
+      </header>
+      <article id="announcement-popup-content" class="announcement-popup-content"></article>
+      <footer class="announcement-popup-actions">
+        <button type="button" class="ghost" id="announcement-popup-prev">上一条</button>
+        <button type="button" class="ghost" id="announcement-popup-next">下一条</button>
+        <button type="button" class="danger-light" id="announcement-popup-read-all">全部已读</button>
+        <button type="button" class="primary" id="announcement-popup-read">我已阅读</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/assets/js/app.js?v=20260625d"></script>
+</body>
+</html>

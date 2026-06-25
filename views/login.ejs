@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>实验室管理平台 - 登录</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="brand-mark">LAB</div>
+    <h1>实验室管理平台</h1>
+    <p class="muted">白名单 + 统一密码登录，局域网资料共享与文件笔记</p>
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+    <form method="post" action="/login" class="form-stack">
+      <label>
+        姓名
+        <input name="username" autocomplete="name" placeholder="请输入白名单姓名" required autofocus />
+      </label>
+      <label>
+        统一密码
+        <input name="password" type="password" autocomplete="current-password" placeholder="所有成员使用同一个密码" required />
+      </label>
+      <label class="checkline remember-line">
+        <input name="remember" type="checkbox" checked />
+        保持登录 30 天
+      </label>
+      <button type="submit" class="primary full">登录</button>
+    </form>
+    <p class="hint">不开放自助注册，白名单由管理员维护。</p>
+  </main>
+<script>
+  const usernameInput = document.querySelector('input[name="username"]');
+  const loginForm = document.querySelector('form[action="/login"]');
+  const savedUsername = localStorage.getItem('lab:lastUsername');
+  if (savedUsername && usernameInput && !usernameInput.value) usernameInput.value = savedUsername;
+  if (loginForm && usernameInput) {
+    loginForm.addEventListener('submit', () => {
+      localStorage.setItem('lab:lastUsername', usernameInput.value.trim());
+    });
+  }
+</script>
+</body>
+</html>
