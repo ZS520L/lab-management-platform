@@ -212,6 +212,10 @@ function canDeleteFile(file) {
   return isAdmin || (Number(file.uploader_id) === Number(user.id) && ['pending', 'rejected'].includes(file.status));
 }
 
+function canRenameFile(file) {
+  return isAdmin || (Number(file.uploader_id) === Number(user.id) && ['pending', 'rejected'].includes(file.status));
+}
+
 function fileTypeLabel(file) {
   const ext = (file.ext || '').replace(/^\./, '').toUpperCase();
   if (ext) return ext;
@@ -271,6 +275,9 @@ async function loadFileDetail(id) {
   const adminReviewActions = isAdmin && file.status === 'pending'
     ? `<div class="actions"><button class="primary" data-approve="${file.id}">通过</button><button class="danger" data-reject="${file.id}">拒绝</button></div>`
     : '';
+  const renameFileAction = canRenameFile(file)
+    ? `<button type="button" data-rename-file="${file.id}" data-file-name="${escapeHtml(file.original_name)}">修改文件名</button>`
+    : '';
   const adminFileActions = isAdmin
     ? `<button data-move-file="${file.id}" data-file-name="${escapeHtml(file.original_name)}" data-current-folder="${file.folder_id}">移动文件</button>`
     : '';
@@ -282,7 +289,7 @@ async function loadFileDetail(id) {
   detail.innerHTML = `
     <div class="file-detail-header">
       <h2>${escapeHtml(file.original_name)}</h2>
-      <div class="actions"><a class="button" href="${file.download_url}">下载文件</a>${adminFileActions}${deleteFileAction}</div>
+      <div class="actions"><a class="button" href="${file.download_url}">下载文件</a>${renameFileAction}${adminFileActions}${deleteFileAction}</div>
       ${adminReviewActions}
     </div>
     <details class="file-info-collapse">
@@ -441,6 +448,18 @@ async function moveFile(event) {
   $('#file-detail').className = 'empty';
   $('#file-detail').textContent = '点击文件查看详情和预览。';
   await Promise.all([loadTree(), loadFiles(), loadPendingFiles()]);
+}
+
+async function renameFile(id, currentName = '') {
+  const name = prompt('新的文件名：', currentName || '');
+  if (!name || name.trim() === currentName) return;
+  const data = await api(`/api/files/${id}`, { method: 'PATCH', body: JSON.stringify({ original_name: name }) });
+  toast('文件名已修改');
+  await loadFiles();
+  if (state.currentPreviewFile && state.currentPreviewFile.id === id) {
+    state.currentPreviewFile = data.file;
+    await loadFileDetail(id);
+  }
 }
 
 async function deleteFile(id, name = '') {
@@ -1018,6 +1037,7 @@ function bindEvents() {
     const approve = event.target.closest('[data-approve]');
     const reject = event.target.closest('[data-reject]');
     const move = event.target.closest('[data-move-file]');
+    const renameFileBtn = event.target.closest('[data-rename-file]');
     const renameFolder = event.target.closest('#rename-folder-btn');
     const deleteFolder = event.target.closest('#delete-folder-btn');
     const moveFolderUp = event.target.closest('#move-folder-up-btn');
@@ -1034,6 +1054,7 @@ function bindEvents() {
     if (approve) approveFile(approve.dataset.approve).catch(err => toast(err.message, 'error'));
     if (reject) rejectFile(reject.dataset.reject).catch(err => toast(err.message, 'error'));
     if (move) openMoveFileDialog(move);
+    if (renameFileBtn) renameFile(renameFileBtn.dataset.renameFile, renameFileBtn.dataset.fileName || '').catch(err => toast(err.message, 'error'));
     if (renameFolder) renameCurrentFolder().catch(err => toast(err.message, 'error'));
     if (deleteFolder) deleteCurrentFolder().catch(err => toast(err.message, 'error'));
     if (moveFolderUp) moveCurrentFolder('up').catch(err => toast(err.message, 'error'));

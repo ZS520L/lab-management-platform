@@ -557,6 +557,11 @@ function canDeleteFile(user, file) {
   return file.uploader_id === user.id && ['pending', 'rejected'].includes(file.status);
 }
 
+function canRenameFile(user, file) {
+  if (user.role === 'admin') return true;
+  return file.uploader_id === user.id && ['pending', 'rejected'].includes(file.status);
+}
+
 function fileAbsolutePath(file) {
   return path.resolve(ROOT, file.relative_path);
 }
@@ -1059,6 +1064,23 @@ app.get('/api/files/:id', requireAuth, (req, res) => {
     }
   }
   res.json({ file: dto });
+});
+
+app.patch('/api/files/:id', requireAuth, (req, res) => {
+  const file = fetchFile(req.params.id);
+  if (!file) return res.status(404).json({ error: '文件不存在' });
+  if (!canRenameFile(req.user, file)) return res.status(403).json({ error: '无权修改该文件名' });
+
+  let originalName = normalizeName(req.body.original_name || req.body.name || '', '');
+  if (!originalName) return res.status(400).json({ error: '文件名不能为空' });
+  if (!path.extname(originalName) && file.ext) originalName += file.ext;
+  const ext = path.extname(originalName).toLowerCase();
+  const mimeType = mime.lookup(originalName) || file.mime_type || 'application/octet-stream';
+  db.prepare('UPDATE files SET original_name = ?, ext = ?, mime_type = ?, updated_at = ? WHERE id = ?')
+    .run(originalName, ext, mimeType, now(), file.id);
+  audit(req.user.id, 'rename', 'file', file.id, `修改文件名：${file.original_name} -> ${originalName}`);
+  const updated = fetchFile(file.id);
+  res.json({ ok: true, file: fileDto(updated) });
 });
 
 app.get('/api/files/:id/preview', requireAuth, (req, res) => {
