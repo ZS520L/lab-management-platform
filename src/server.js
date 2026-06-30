@@ -262,6 +262,25 @@ function ensureFileHashColumn() {
     db.exec("ALTER TABLE files ADD COLUMN content_hash TEXT DEFAULT ''");
     db.exec('CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash)');
   }
+  backfillContentHash();
+}
+
+function backfillContentHash() {
+  const rows = db.prepare("SELECT id, relative_path FROM files WHERE content_hash IS NULL OR content_hash = ''").all();
+  if (!rows.length) return;
+  const update = db.prepare('UPDATE files SET content_hash = ? WHERE id = ?');
+  let filled = 0;
+  for (const row of rows) {
+    try {
+      const absPath = path.resolve(ROOT, row.relative_path);
+      if (fs.existsSync(absPath)) {
+        const hash = crypto.createHash('sha256').update(fs.readFileSync(absPath)).digest('hex');
+        update.run(hash, row.id);
+        filled++;
+      }
+    } catch (e) { /* skip unreadable files */ }
+  }
+  if (filled) console.log(`[backfill] 已为 ${filled}/${rows.length} 个历史文件补充 content_hash`);
 }
 
 function ensureUserProfileColumns() {
