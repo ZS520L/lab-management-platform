@@ -63,9 +63,9 @@ async function api(url, options = {}, retries = 2) {
     if (!res.ok) {
       let message = typeof payload === 'object' ? payload.error : payload;
       if (typeof message === 'string' && /<\/?[a-z][\s\S]*>/i.test(message)) {
-        message = `请求失败：${res.status} ${res.statusText || ''}`.trim();
+        message = `请求失败(${res.status})`;
       }
-      throw new Error(message || '请求失败');
+      throw new Error(message || `请求失败(${res.status})`);
     }
     return payload;
   } catch (err) {
@@ -180,6 +180,8 @@ function toggleFolderCollapse(folderId) {
 function selectFolder(folder) {
   state.currentFolder = folder;
   $$('.tree-node').forEach(btn => btn.classList.toggle('selected', Number(btn.dataset.folderId) === folder.id));
+  $$('.tabs button').forEach(item => item.classList.toggle('active', item.dataset.view === 'files'));
+  $$('.view').forEach(view => view.classList.toggle('active', view.id === 'view-files'));
   $('#folder-title').textContent = folder.name;
   $('#folder-subtitle').textContent = `已发布 ${folder.approved_count || 0} 个文件${isAdmin ? `，待审核 ${folder.pending_count || 0} 个` : ''}`;
   $('#upload-folder-id').value = folder.id;
