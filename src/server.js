@@ -249,11 +249,20 @@ function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_files_folder_status ON files(folder_id, status);
     CREATE INDEX IF NOT EXISTS idx_files_uploader ON files(uploader_id);
+    CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash);
     CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id);
     CREATE INDEX IF NOT EXISTS idx_notes_folder ON notes(folder_id);
     CREATE INDEX IF NOT EXISTS idx_announcement_reads_user ON announcement_reads(user_id, announcement_id);
     CREATE INDEX IF NOT EXISTS idx_file_comments_file ON file_comments(file_id, created_at);
   `);
+}
+
+function ensureFileHashColumn() {
+  const columns = db.prepare('PRAGMA table_info(files)').all().map(column => column.name);
+  if (!columns.includes('content_hash')) {
+    db.exec("ALTER TABLE files ADD COLUMN content_hash TEXT DEFAULT ''");
+    db.exec('CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash)');
+  }
 }
 
 function ensureUserProfileColumns() {
@@ -361,6 +370,7 @@ function seedInitialData() {
 }
 
 ensureSchema();
+ensureFileHashColumn();
 ensureUserProfileColumns();
 ensureSharedPassword();
 seedInitialData();
@@ -1017,6 +1027,14 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
     return res.status(400).json({ error: '目标目录不存在' });
   }
 
+  const contentHash = crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+  const duplicate = db.prepare('SELECT id, original_name, folder_id FROM files WHERE content_hash = ?').get(contentHash);
+  if (duplicate) {
+    fs.unlinkSync(req.file.path);
+    const dupFolder = db.prepare('SELECT name FROM folders WHERE id = ?').get(duplicate.folder_id);
+    return res.status(409).json({ error: `文件内容重复，与「${dupFolder ? dupFolder.name + '/' : ''}${duplicate.original_name}」为同一文件` });
+  }
+
   const fileId = crypto.randomUUID();
   const originalName = normalizeName(req.file.originalname || req.file.filename, '未命名文件');
   const ext = path.extname(originalName).toLowerCase();
@@ -1027,8 +1045,8 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
   db.prepare(`
     INSERT INTO files (
       id, folder_id, original_name, stored_name, relative_path, mime_type, ext, size_bytes,
-      uploader_id, status, description, approved_by, approved_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      uploader_id, status, description, approved_by, approved_at, content_hash, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     fileId,
     folderId,
@@ -1043,6 +1061,7 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
     safeText(req.body.description).slice(0, 1000),
     status === 'approved' ? req.user.id : null,
     status === 'approved' ? createdAt : null,
+    contentHash,
     createdAt,
     createdAt
   );
