@@ -315,8 +315,20 @@ function ensureSharedPassword() {
   console.log('已初始化统一登录口令。请管理员登录后在管理后台修改。');
 }
 
+function ensureAdminPassword() {
+  if (getSetting('admin_password_hash')) return;
+  const adminPwd = process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD !== '[CHANGE_ME]' ? process.env.ADMIN_PASSWORD : 'admin123456';
+  setSetting('admin_password_hash', bcrypt.hashSync(adminPwd, 12));
+  console.log('已初始化管理员独立密码。请管理员登录后在管理后台修改。');
+}
+
 function verifySharedPassword(password) {
   const hash = getSetting('shared_password_hash');
+  return Boolean(hash && bcrypt.compareSync(String(password || ''), hash));
+}
+
+function verifyAdminPassword(password) {
+  const hash = getSetting('admin_password_hash');
   return Boolean(hash && bcrypt.compareSync(String(password || ''), hash));
 }
 
@@ -391,6 +403,7 @@ ensureSchema();
 ensureFileHashColumn();
 ensureUserProfileColumns();
 ensureSharedPassword();
+ensureAdminPassword();
 seedInitialData();
 repairMojibakeFilenames();
 
@@ -778,7 +791,11 @@ app.post('/login', (req, res) => {
   if (!user) {
     return res.status(401).render('login', { error: '该姓名不在白名单中，请联系管理员添加' });
   }
-  if (!verifySharedPassword(sharedPassword)) return res.status(401).render('login', { error: '统一登录码不正确' });
+  if (user.role === 'admin') {
+    if (!verifyAdminPassword(sharedPassword)) return res.status(401).render('login', { error: '管理员密码不正确' });
+  } else {
+    if (!verifySharedPassword(sharedPassword)) return res.status(401).render('login', { error: '统一登录码不正确' });
+  }
   req.session.userId = user.id;
   req.session.cookie.maxAge = req.body.remember === 'on' ? REMEMBER_SESSION_MS : SHORT_SESSION_MS;
   audit(user.id, 'login', 'user', user.id, req.body.remember === 'on' ? '白名单统一登录码登录并保持登录' : '白名单统一登录码登录');
@@ -1392,7 +1409,15 @@ app.post('/api/admin/access-key', requireAuth, requireAdmin, (req, res) => {
   const code = String(req.body.code || '');
   if (code.length < 6) return res.status(400).json({ error: '统一访问码至少 6 位' });
   setSetting('shared_password_hash', bcrypt.hashSync(code, 12), req.user.id);
-  db.prepare('DELETE FROM sessions WHERE sid != ?').run(req.sessionID);
+  db.prepare("DELETE FROM sessions WHERE sid != ? AND json_extract(sess, '$.userId') IN (SELECT id FROM users WHERE role != 'admin')").run(req.sessionID);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/password', requireAuth, requireAdmin, (req, res) => {
+  const newPassword = String(req.body.password || '');
+  if (newPassword.length < 6) return res.status(400).json({ error: '管理员密码至少 6 位' });
+  setSetting('admin_password_hash', bcrypt.hashSync(newPassword, 12), req.user.id);
+  audit(req.user.id, 'update', 'setting', 0, '更新管理员独立密码');
   res.json({ ok: true });
 });
 

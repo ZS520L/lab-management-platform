@@ -907,6 +907,15 @@ async function updateAccessKey(event) {
   toast('统一密码已更新');
 }
 
+async function updateAdminPassword(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  await api('/api/admin/password', { method: 'POST', body: JSON.stringify(data) });
+  form.reset();
+  toast('管理员密码已更新');
+}
+
 function leaderboardMedal(index) {
   if (index === 0) return '🥇';
   if (index === 1) return '🥈';
@@ -1183,6 +1192,7 @@ function bindEvents() {
   $('#user-form')?.addEventListener('submit', event => createUser(event).catch(err => toast(err.message, 'error')));
   $('#user-list')?.addEventListener('submit', event => updateUser(event).catch(err => toast(err.message, 'error')));
   $('#shared-password-form')?.addEventListener('submit', event => updateAccessKey(event).catch(err => toast(err.message, 'error')));
+  $('#admin-password-form')?.addEventListener('submit', event => updateAdminPassword(event).catch(err => toast(err.message, 'error')));
 
   $('#new-note-btn')?.addEventListener('click', () => createNote().catch(err => toast(err.message, 'error')));
   $('#note-list')?.addEventListener('click', event => {
