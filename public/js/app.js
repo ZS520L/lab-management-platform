@@ -36,10 +36,11 @@ const $$ = selector => Array.from(document.querySelectorAll(selector));
 function toast(message, type = 'ok') {
   const el = $('#toast');
   el.textContent = message;
+  el.style.whiteSpace = 'pre-line';
   el.className = `toast ${type}`;
   el.hidden = false;
   clearTimeout(el.timer);
-  el.timer = setTimeout(() => { el.hidden = true; }, 2600);
+  el.timer = setTimeout(() => { el.hidden = true; }, type === 'error' ? 5000 : 2600);
 }
 
 function escapeHtml(value) {
@@ -387,8 +388,8 @@ async function uploadCurrentFile(event) {
     submit.disabled = false;
   }
   if (failed.length) {
-    renderUploadFileList(`上传完成：成功 ${success} 个，失败 ${failed.length} 个`);
-    toast(`成功 ${success} 个，失败 ${failed.length} 个`, 'error');
+    renderUploadFileList(`上传完成：成功 ${success} 个，失败 ${failed.length} 个\n${failed.join('\n')}`);
+    toast(failed.join('\n'), 'error');
   } else {
     $('#upload-dialog').close();
     form.reset();
