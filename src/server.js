@@ -249,7 +249,6 @@ function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_files_folder_status ON files(folder_id, status);
     CREATE INDEX IF NOT EXISTS idx_files_uploader ON files(uploader_id);
-    CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash);
     CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id);
     CREATE INDEX IF NOT EXISTS idx_notes_folder ON notes(folder_id);
     CREATE INDEX IF NOT EXISTS idx_announcement_reads_user ON announcement_reads(user_id, announcement_id);
